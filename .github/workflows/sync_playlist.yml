@@ -1,0 +1,54 @@
+name: Sync Playlist from Google Drive
+
+on:
+  # Pemicu: Berjalan setiap jam (pada menit ke-0)
+  schedule:
+    - cron: '0 * * * *'
+  # Pemicu manual: Agar bisa dijalankan kapan saja dari tab Actions
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Langkah 1: Checkout kode repository agar bisa diakses
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Langkah 2: Unduh playlist dari Google Drive
+      # GANTI URL DI BAWAH INI DENGAN URL GOOGLE DRIVE ANDA
+      - name: Download playlist from Google Drive
+        run: curl -L "https://drive.usercontent.google.com/download?id=1xfsnxaBbvzpRSnEkYWR0M0zEehlMBDNN&export=download&authuser=0" -o playlist_new.m3u
+
+      # Langkah 3: Cek apakah ada perubahan antara file baru dan yang lama
+      - name: Check for changes
+        id: diff
+        run: |
+          if ! git diff --quiet playlist.m3u playlist_new.m3u; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      # Langkah 4: Jika ada perubahan, salin file baru, commit, dan push
+      - name: Commit and push if changed
+        if: steps.diff.outputs.changes == 'true'
+        run: |
+          echo "Playlist has been updated. Committing changes..."
+          mv playlist_new.m3u playlist.m3u
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add playlist.m3u
+          git commit -m "Update playlist from Google Drive"
+          git push
+        env:
+          # Menggunakan token yang sudah kita simpan di secrets
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      # Langkah 5: Jika tidak ada perubahan, hapus file yang diunduh
+      - name: Clean up if no changes
+        if: steps.diff.outputs.changes == 'false'
+        run: |
+          echo "No changes detected in the playlist."
+          rm playlist_new.m3u
