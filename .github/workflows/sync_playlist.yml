@@ -1,32 +1,40 @@
 name: Sync Playlist from Google Drive
 
 on:
-  # Pemicu: Berjalan setiap jam (pada menit ke-0)
   schedule:
     - cron: '0 * * * *'
-  # Pemicu manual: Agar bisa dijalankan kapan saja dari tab Actions
   workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      # Langkah 1: Checkout kode repository agar bisa diakses
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Langkah 2: Unduh playlist dari Google Drive menggunakan URL yang sudah diperbaiki
-      - name: Download playlist from Google Drive
-        run: curl -L "https://docs.google.com/uc?export=download&id=1xfsnxaBbvzpRSnEkYWR0M0zEehlMBDNN" -o playlist_new.m3u
-
-      # Langkah 3: Menampilkan isi file yang diunduh untuk memastikan tidak kosong
-      - name: Display downloaded content for debugging
+      # =================================================================
+      # === PERINTAH DOWNLOAD BARU YANG LEBIH CANGGIH ===
+      # =================================================================
+      - name: Download file from Google Drive (Handles Large File Warning)
         run: |
-          echo "--- Menampilkan 50 baris pertama isi file yang diunduh (playlist_new.m3u) ---"
-          head -n 50 playlist_new.m3u
-          echo "--- Selesai menampilkan isi file ---"
+          FILE_ID="1xfsnxaBbvzpRSnEkYWR0M0zEehlMBDNN"
+          # Langkah 1: Ambil cookie konfirmasi dari Google
+          curl -sc /tmp/cookies "https://docs.google.com/uc?export=download&id=${FILE_ID}" > /dev/null
+          # Langkah 2: Gunakan cookie tersebut untuk mengunduh file yang sebenarnya
+          curl -Lb /tmp/cookies "https://docs.google.com/uc?export=download&confirm=`awk '/download/ {print $NF}' /tmp/cookies`&id=${FILE_ID}" -o playlist_new.m3u
 
-      # Langkah 4: Cek apakah ada perubahan antara file baru dan yang lama
+      # Langkah untuk memastikan unduhan berhasil
+      - name: Verify Download
+        run: |
+          echo "Ukuran file yang diunduh: $(ls -l playlist_new.m3u | awk '{print $5}') bytes"
+          if [ ! -s playlist_new.m3u ]; then
+            echo "::error::File yang diunduh kosong! Proses gagal."
+            exit 1
+          fi
+          echo "File berhasil diunduh dan tidak kosong."
+          head -n 20 playlist_new.m3u
+      # =================================================================
+
       - name: Check for changes
         id: diff
         run: |
@@ -37,7 +45,6 @@ jobs:
           fi
         shell: bash
 
-      # Langkah 5: Jika ada perubahan, salin file baru, commit, dan push
       - name: Commit and push if changed
         if: steps.diff.outputs.changes == 'true'
         run: |
@@ -51,7 +58,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      # Langkah 6: Jika tidak ada perubahan, hapus file yang diunduh
       - name: Clean up if no changes
         if: steps.diff.outputs.changes == 'false'
         run: |
