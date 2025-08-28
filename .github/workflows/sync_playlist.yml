@@ -15,12 +15,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Langkah 2: Unduh playlist dari Google Drive
-      # GANTI URL DI BAWAH INI DENGAN URL GOOGLE DRIVE ANDA
+      # Langkah 2: Unduh playlist dari Google Drive menggunakan URL yang sudah diperbaiki
       - name: Download playlist from Google Drive
-        run: curl -L "https://drive.usercontent.google.com/download?id=1xfsnxaBbvzpRSnEkYWR0M0zEehlMBDNN&export=download&authuser=0" -o playlist_new.m3u
+        run: curl -L "https://docs.google.com/uc?export=download&id=1xfsnxaBbvzpRSnEkYWR0M0zEehlMBDNN" -o playlist_new.m3u
 
-      # Langkah 3: Cek apakah ada perubahan antara file baru dan yang lama
+      # Langkah 3: Menampilkan isi file yang diunduh untuk memastikan tidak kosong
+      - name: Display downloaded content for debugging
+        run: |
+          echo "--- Menampilkan 50 baris pertama isi file yang diunduh (playlist_new.m3u) ---"
+          head -n 50 playlist_new.m3u
+          echo "--- Selesai menampilkan isi file ---"
+
+      # Langkah 4: Cek apakah ada perubahan antara file baru dan yang lama
       - name: Check for changes
         id: diff
         run: |
@@ -31,7 +37,7 @@ jobs:
           fi
         shell: bash
 
-      # Langkah 4: Jika ada perubahan, salin file baru, commit, dan push
+      # Langkah 5: Jika ada perubahan, salin file baru, commit, dan push
       - name: Commit and push if changed
         if: steps.diff.outputs.changes == 'true'
         run: |
@@ -43,10 +49,9 @@ jobs:
           git commit -m "Update playlist from Google Drive"
           git push
         env:
-          # Menggunakan token yang sudah kita simpan di secrets
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      # Langkah 5: Jika tidak ada perubahan, hapus file yang diunduh
+      # Langkah 6: Jika tidak ada perubahan, hapus file yang diunduh
       - name: Clean up if no changes
         if: steps.diff.outputs.changes == 'false'
         run: |
